@@ -1,0 +1,8 @@
+{
+    "name": "CSharpLatest",
+    "references": [],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": []
+}
