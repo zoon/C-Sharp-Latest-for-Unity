@@ -1,3 +1,15 @@
+# VS Code
+.vscode
+
+# Rider
+*.DotSettings
+
+build/
+Assets/~*/
+Assets/Plugins/
+Assets/Plugins.meta
+
+
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
