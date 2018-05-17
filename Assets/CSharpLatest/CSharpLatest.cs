@@ -5,9 +5,13 @@ using System.Reflection;
 using System.IO;
 using System.Xml.Linq;
 using System.Linq;
+using System.Text;
+using UnityEngine.Assertions;
+using JObject = System.Collections.Generic.Dictionary<string, object>;
+using JArray = System.Collections.Generic.List<object>;
 
 #if true
-[assembly: AssemblyVersion("0.1.0.12")]
+[assembly: AssemblyVersion("0.1.0.17")]
 [assembly: AssemblyTitle("C# Latest for Unity")]
 [assembly: AssemblyDescription("https://github.com/zoon/C-Sharp-Latest-for-Unity")]
 #endif
@@ -36,6 +40,12 @@ namespace CSharpLatest
             {
                 CsProjectPostprocessor.OnGeneratedCSProjectFiles();
             }
+
+            if (s_unityCurrent >= s_unityModern &&
+                EditorApplication.scriptingRuntimeVersion > ScriptingRuntimeVersion.Legacy)
+            {
+                UPMManifestProcessor.AddIncrementalCompilerPackage();
+            }
         }
 
         public static bool ShiftToLast<T>(this T[] list, Predicate<T> predicate)
@@ -59,7 +69,7 @@ namespace CSharpLatest
           ?.GetGetMethod(true);
     }
 
-    public class CsProjectPostprocessor : AssetPostprocessor
+    internal class CsProjectPostprocessor : AssetPostprocessor
     {
         public static void OnGeneratedCSProjectFiles()
         {
@@ -152,6 +162,94 @@ namespace CSharpLatest
                 propertyGroup.Add(node);
             }
             return true;
+        }
+    }
+
+    public static class UPMManifestProcessor
+    {
+        public const string DEPENDENCIES        = "dependencies";
+        public const string REGISTRY            = "registry";
+        public const string TESTABLES           = "testables";
+        public const string INCREMENTALCOMPILER = "com.unity.incrementalcompiler";
+
+        private static MethodInfo s_JsonDeserializeInfo = typeof(EditorWindow)
+           .Assembly
+           .GetType("UnityEditor.Json")
+          ?.GetMethod("Deserialize");
+        public static Func<string, object> JsonDeserialize = s_JsonDeserializeInfo != null
+            ? (Func<string, object>)Delegate.CreateDelegate(typeof(Func<string, object>), s_JsonDeserializeInfo)
+            : _ => throw new MissingMethodException("UnityEditor.Json", "Deserialize");
+
+        public static void SerializeUPMManifest(JObject manifest, ref StringBuilder sb)
+        {
+            const char DQ = '"';
+            const char LF = '\n';
+            const string INDENT = "  ";
+
+            sb.Append("{");
+            // dependencies
+            sb.Append(LF).Append(INDENT).Append(DQ).Append(DEPENDENCIES).Append(DQ).Append(": {");
+            manifest.TryGetValue(DEPENDENCIES, out object deps);
+            if (deps is JObject dependencies && dependencies.Count > 0)
+            {
+                foreach (var d in dependencies)
+                {
+                    sb.Append(LF).Append(INDENT).Append(INDENT).Append(DQ).Append(d.Key).Append(DQ).Append(": ");
+                    sb.Append(DQ).Append(d.Value).Append(DQ).Append(',');
+                }
+                sb.Length -= 1; // rm trailing comma
+                sb.Append(LF).Append(INDENT);
+            }
+            sb.Append("}");
+            // registry
+            manifest.TryGetValue(REGISTRY, out object reg);
+            if (reg is string registry && !string.IsNullOrEmpty(registry))
+            {
+                sb.Append(',');
+                sb.Append(LF).Append(INDENT).Append(DQ).Append(REGISTRY).Append(DQ).Append(": ");
+                sb.Append(DQ).Append(registry).Append(DQ);
+            }
+            // testables
+            manifest.TryGetValue(TESTABLES, out object tests);
+            if (tests is JArray testables && testables.Count > 0)
+            {
+                sb.Append(',');
+                sb.Append(LF).Append(INDENT).Append(DQ).Append(TESTABLES).Append(DQ).Append(": [");
+                foreach (string testable in testables)
+                {
+                    sb.Append(LF).Append(INDENT).Append(INDENT).Append(DQ).Append(testable).Append(DQ).Append(',');
+                }
+                sb.Length -= 1; // rm trailing comma
+                sb.Append(LF).Append(INDENT).Append(']');
+            }
+            sb.Append(LF).Append('}');
+        }
+
+        internal static void AddIncrementalCompilerPackage()
+        {
+            try
+            {
+                string manPath = Path.Combine("Packages", "manifest.json");
+                string manifestJson = File.ReadAllText(manPath);
+                JObject manifest = JsonDeserialize(manifestJson) as JObject;
+                Assert.IsNotNull(manifest);
+                manifest.TryGetValue(DEPENDENCIES, out object obj);
+                JObject dependencies = obj as JObject ?? new JObject();
+                if (dependencies.ContainsKey(INCREMENTALCOMPILER))
+                {
+                    return;
+                }
+                dependencies[INCREMENTALCOMPILER] = "0.0.41";
+                manifest[DEPENDENCIES]            = dependencies;
+                manifest[REGISTRY]                = "https://staging-packages.unity.com";
+                var sb = new StringBuilder(1024);
+                SerializeUPMManifest(manifest, ref sb);
+                File.WriteAllText(manPath, sb.ToString());
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"AddIncrementalCompilerPackage: {e}");
+            }
         }
     }
 }
