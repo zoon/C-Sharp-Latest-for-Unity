@@ -3,6 +3,7 @@
 
 # Rider
 *.DotSettings
+.idea/
 
 build/
 Assets/~*/
