@@ -10,12 +10,6 @@ using UnityEngine.Assertions;
 using JObject = System.Collections.Generic.Dictionary<string, object>;
 using JArray = System.Collections.Generic.List<object>;
 
-#if true
-[assembly: AssemblyVersion("0.1.0.17")]
-[assembly: AssemblyTitle("C# Latest for Unity")]
-[assembly: AssemblyDescription("https://github.com/zoon/C-Sharp-Latest-for-Unity")]
-#endif
-
 namespace CSharpLatest
 {
     public static class Bootstrap
@@ -30,12 +24,14 @@ namespace CSharpLatest
                     "needed).");
                 return;
             }
+
             Assembly[] loadedAssemblies = (Assembly[])s_loadedAssembliesGetter?.Invoke(null, s_zero);
             if (loadedAssemblies == null)
             {
                 Debug.LogError("Error getting 'UnityEditor.EditorAssemblies.loadedAssemblies' by reflection");
                 return;
             }
+
             if (loadedAssemblies.ShiftToLast(a => Equals(a, typeof(CsProjectPostprocessor).Assembly)))
             {
                 CsProjectPostprocessor.OnGeneratedCSProjectFiles();
