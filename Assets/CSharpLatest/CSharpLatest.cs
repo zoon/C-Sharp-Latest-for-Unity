@@ -9,6 +9,7 @@ using System.Text;
 using UnityEngine.Assertions;
 using JObject = System.Collections.Generic.Dictionary<string, object>;
 using JArray = System.Collections.Generic.List<object>;
+using System.Xml;
 
 namespace CSharpLatest
 {
@@ -131,18 +132,31 @@ namespace CSharpLatest
 
         private static void UpdateProjectFile(string csproj, string csver)
         {
+			StreamReader streamRead = null;
+			StreamWriter streamWrite = null;
+
             try
             {
-                XDocument xdoc = XDocument.Load(csproj);
-                if (ChangeOrSetProperty(xdoc.Root, xdoc.Root?.Name.NamespaceName, "LangVersion", csver))
-                {
-                    xdoc.Save(csproj);
-                }
+				streamRead = new StreamReader(csproj);
+				XDocument xdoc = XDocument.Load(streamRead);
+				streamRead.Close();
+				
+				if(ChangeOrSetProperty(xdoc.Root, xdoc.Root?.Name.NamespaceName, "LangVersion", csver)) {
+					streamWrite = new StreamWriter(csproj);
+					xdoc.Save(streamWrite);
+					streamWrite.Close();
+				}
+				
             }
             catch (Exception e)
             {
                 Debug.LogError(e);
-            }
+			}
+			finally 
+			{
+				streamRead?.Close();
+				streamWrite?.Close();
+			}
         }
 
         private static bool ChangeOrSetProperty(XContainer root, XNamespace ns, string name, string val)
